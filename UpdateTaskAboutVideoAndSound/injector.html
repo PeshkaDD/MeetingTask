@@ -1,0 +1,194 @@
+<!doctype html>
+<script type="module">
+	import { CONFIG } from './config.js'
+	window.EffectsIntegration = {
+		config: CONFIG,
+		manager: null,
+		status: 'loading',
+	}
+
+	async function initializeEffectsIntegration() {
+		try {
+			const config = await loadConfig()
+			const module = await import('./core/index.js')
+
+			window.EffectsIntegration.manager = module.initializeEffectsSDK(config)
+			await window.EffectsIntegration.manager.initialize()
+
+			window.EffectsIntegration.status = 'active'
+
+			console.log('Effects SDK successfully integrated with Orange Meets!')
+			console.log('   Available methods:')
+			console.log(
+				'   - window.EffectsIntegration.manager.setNoiseSuppression(level)'
+			)
+			console.log('   - window.EffectsIntegration.manager.getActiveEffects()')
+
+			// Автоматически применяем настройки по умолчанию
+			applyDefaultSettings()
+
+			// Отслеживаем события Orange Meets (если нужно)
+			setupOrangeMeetsEventListeners()
+		} catch (error) {
+			console.error('Failed to load Effects SDK:', error)
+			window.EffectsIntegration.status = 'error'
+			window.EffectsIntegration.error = error.message
+		}
+	}
+
+	function applyDefaultSettings() {
+		if (!window.EffectsIntegration.manager) return
+
+		const { config } = window.EffectsIntegration
+
+		if (config.effectsSdk.audio.noiseSuppression.enabled) {
+			window.EffectsIntegration.manager.setNoiseSuppression(
+				config.effectsSdk.audio.noiseSuppression.defaultLevel
+			)
+			console.log(
+				`Noise suppression enabled at ${config.effectsSdk.audio.noiseSuppression.defaultLevel * 100}%`
+			)
+		}
+	}
+
+	function setupOrangeMeetsEventListeners() {
+		const originalGetUserMedia = navigator.mediaDevices.getUserMedia
+
+		navigator.mediaDevices.getUserMedia = async function (...args) {
+			console.log('🎤 getUserMedia called, applying effects...')
+
+			const stream = await originalGetUserMedia.apply(this, args)
+			if (window.EffectsIntegration.manager) {
+				console.log('   Effects will be applied to new stream')
+			}
+
+			return stream
+		}
+
+		let lastUrl = location.href
+		setInterval(() => {
+			if (location.href !== lastUrl) {
+				lastUrl = location.href
+				console.log('URL changed, checking for room events...')
+
+				if (location.href.includes('/room/')) {
+					onRoomEnter()
+				}
+			}
+		}, 1000)
+	}
+
+	function onRoomEnter() {
+		console.log('Entered a room, applying effects...')
+
+		setTimeout(() => {
+			if (window.EffectsIntegration.manager) {
+				window.EffectsIntegration.manager.setNoiseSuppression(0.8)
+				console.log('   Effects applied for the room')
+			}
+		}, 3000)
+	}
+
+	function debugEffects() {
+		console.group('Effects Integration Debug')
+		console.log('Status:', window.EffectsIntegration.status)
+		console.log(
+			'Manager:',
+			window.EffectsIntegration.manager ? 'Loaded' : 'Not loaded'
+		)
+
+		if (window.EffectsIntegration.manager) {
+			console.log(
+				'Active effects:',
+				window.EffectsIntegration.manager.getActiveEffects()
+			)
+		}
+
+		if (window.EffectsIntegration.error) {
+			console.error('Error:', window.EffectsIntegration.error)
+		}
+		console.groupEnd()
+	}
+
+	window.debugEffects = debugEffects
+
+	function createDebugPanel() {
+		if (document.getElementById('effects-debug-panel')) return
+
+		const panel = document.createElement('div')
+		panel.id = 'effects-debug-panel'
+		panel.style.cssText = `
+	           position: fixed;
+	           top: 10px;
+	           right: 10px;
+	           background: rgba(0,0,0,0.85);
+	           color: white;
+	           padding: 12px;
+	           border-radius: 8px;
+	           font-family: monospace;
+	           font-size: 12px;
+	           z-index: 9999;
+	           border: 1px solid #666;
+	           max-width: 300px;
+	       `
+
+		panel.innerHTML = `
+	           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+	               <strong>🎭 Effects SDK</strong>
+	               <span id="effects-status" style="color: #4CAF50;">●</span>
+	           </div>
+	           <div style="margin-bottom: 8px;">
+	               <label style="display: block; margin-bottom: 4px;">Noise Suppression:</label>
+	               <input type="range" min="0" max="1" step="0.1" value="0.7"
+	                      id="noise-slider" style="width: 100%;">
+	               <div style="display: flex; justify-content: space-between; font-size: 10px;">
+	                   <span>0%</span><span>50%</span><span>100%</span>
+	               </div>
+	           </div>
+	           <button onclick="window.debugEffects()"
+	                   style="width: 100%; padding: 4px; background: #333; color: white; border: none; border-radius: 4px; margin-top: 8px;">
+	               Debug Console
+	           </button>
+	       `
+
+		document.body.appendChild(panel)
+
+		const slider = document.getElementById('noise-slider')
+		slider.addEventListener('input', (e) => {
+			const level = parseFloat(e.target.value)
+			if (window.EffectsIntegration.manager) {
+				window.EffectsIntegration.manager.setNoiseSuppression(level)
+
+				// Обновляем статус
+				const status = document.getElementById('effects-status')
+				status.textContent = `${Math.round(level * 100)}%`
+				status.style.color =
+					level > 0.5 ? '#4CAF50' : level > 0.2 ? '#FFC107' : '#F44336'
+			}
+		})
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', () => {
+			initializeEffectsIntegration()
+			setTimeout(createDebugPanel, 2000)
+		})
+	} else {
+		initializeEffectsIntegration()
+		setTimeout(createDebugPanel, 2000)
+	}
+
+	window.addEventListener('error', (event) => {
+		if (event.message.includes('Effects SDK')) {
+			console.error('Effects SDK Error:', event.error)
+			window.EffectsIntegration.status = 'error'
+			window.EffectsIntegration.error = event.error.message
+		}
+	})
+
+	console.log(`
+	   Effects Integration Loader
+	   =============================
+	   This script integrates custom audio and video effects with Orange Meets.
+	   `)
+</script>
