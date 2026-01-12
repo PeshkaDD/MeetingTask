@@ -14,7 +14,6 @@ export class AudioProcessor {
 	async initialize() {
 		this.audioContext = new AudioContext()
 
-		// Загружаем кастомный AudioWorklet
 		await this.audioContext.audioWorklet.addModule(
 			'/effects-integration/worklets/adjustable-noise-suppressor.js'
 		)
@@ -25,11 +24,8 @@ export class AudioProcessor {
 			await this.initialize()
 		}
 
-		// Создаем граф обработки
 		this.sourceNode = this.audioContext!.createMediaStreamSource(stream)
 		this.destinationNode = this.audioContext!.createMediaStreamDestination()
-
-		// Создаем AudioWorklet с параметром уровня
 		this.workletNode = new AudioWorkletNode(
 			this.audioContext!,
 			'AdjustableNoiseSuppressor',
@@ -40,20 +36,16 @@ export class AudioProcessor {
 			}
 		)
 
-		// Подключаем: источник → worklet → выход
 		this.sourceNode.connect(this.workletNode)
 		this.workletNode.connect(this.destinationNode)
 
-		// Возвращаем обработанный поток
 		return this.destinationNode.stream
 	}
 
-	// Изменение уровня шумоподавления на лету
 	async setNoiseSuppressionLevel(level: number) {
 		this.noiseSuppressionLevel = Math.max(0, Math.min(1, level))
 
 		if (this.workletNode) {
-			// Отправляем сообщение в worklet
 			this.workletNode.port.postMessage({
 				type: 'updateSuppressionLevel',
 				level: this.noiseSuppressionLevel,

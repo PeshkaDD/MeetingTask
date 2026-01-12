@@ -8,15 +8,13 @@ export function initializeEffectsSDK(config: { apiKey?: string } = {}) {
 	effectsManager = new EffectsManager(config)
 	interceptMediaStreams()
 
-	console.log('🎵 Effects SDK initialized successfully!')
+	console.log('Effects SDK initialized successfully!')
 	return effectsManager
 }
 
 export function getEffectsManager() {
 	if (!effectsManager) {
-		throw new Error(
-			'Effects SDK not initialized. Call initializeEffectsSDK() first.'
-		)
+		throw new Error('Effects SDK not initialized.')
 	}
 	return effectsManager
 }
@@ -28,7 +26,6 @@ function interceptMediaStreams() {
 		const originalStream = await originalGetUserMedia.call(this, constraints)
 
 		if (effectsManager && effectsManager.hasActiveEffects()) {
-			// ПРАВИЛЬНО: передаем constraints, который точно определен здесь
 			return await effectsManager.processStream(originalStream, constraints)
 		}
 

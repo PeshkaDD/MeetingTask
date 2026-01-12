@@ -7,8 +7,11 @@ compatibility_flags = ["nodejs_compat"]
 [site]
   bucket = "./public"
 
+[partytracks]
+enabled = true
+
 [vars]
-CALLS_APP_ID = "YOUR_CALLS_SFU_APP_ID_HERE"
+TEST_MODE = "local"
 
 # Optional vars
 # OPENAI_MODEL_ENDPOINT = ""
